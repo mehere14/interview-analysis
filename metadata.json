@@ -1,0 +1,8 @@
+{
+  "name": "HireSight AI - Interview Coach",
+  "description": "An AI-powered interview preparation tool that analyzes your resume, generates tailored questions, and provides real-time video feedback on your interview performance including sentiment, clarity, and structured thinking.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
