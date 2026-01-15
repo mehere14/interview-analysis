@@ -8,6 +8,7 @@ export const generateQuestions = async (resume: string, jobDescription: string):
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Based on this resume and job description, generate 4 highly relevant interview questions. 
+    Mix of behavioral and technical questions suitable for the role.
     Resume: ${resume}
     Job Description: ${jobDescription}`,
     config: {
@@ -21,7 +22,7 @@ export const generateQuestions = async (resume: string, jobDescription: string):
             text: { type: Type.STRING },
             category: { 
               type: Type.STRING,
-              description: "behavioral, technical, situational, or intro"
+              description: "behavioral or technical"
             }
           },
           required: ["id", "text", "category"]
@@ -39,20 +40,40 @@ export const generateQuestions = async (resume: string, jobDescription: string):
 };
 
 export const analyzeInterviewResponse = async (
-  question: string,
-  frames: string[], // Base64 strings
-  audioBase64?: string
+  question: InterviewQuestion,
+  frames: string[]
 ): Promise<InterviewAnalysis> => {
-  // We send the question and a sequence of frames to analyze performance
+  const isTechnical = question.category === 'technical';
+  
+  const behavioralInstructions = `
+    Assess using 1-5 scales:
+    1. Structural Criteria (STAR+R Method): Did they provide Situation, Task, Action, Result (quantified), and Reflection?
+    2. Content & Competency Alignment: Relevance to job, problem-solving, communication quality.
+    3. Behavioral & Engagement Cues: Listening, confidence, energy, self-awareness.
+    Check for Red Flags: Vague "Story-Only" answers (no metrics), Blame-Shifting, Inconsistency with resume, Defensiveness.
+  `;
+
+  const technicalInstructions = `
+    Assess using 1-5 scales:
+    1. Meta-Reasoning & "Thinking Out Loud": Clarification questions, externalizing thought process, self-correction.
+    2. Implementation Quality: Readability, abstractions (DRY), Big O optimization.
+    3. Trade-off Fluency & System Awareness: Resource management, alternative solutions, failure modes.
+    4. Testing & Edge Case Awareness: Adversarial thinking, validation for nulls/boundaries, systematic debugging.
+    5. Technical Communication & Collaboration: Explaining complex concepts simply, feedback integration, AI literacy (if applicable).
+  `;
+
   const parts = [
     { text: `Analyze this interview response. 
-      Question asked: "${question}"
+      Question Type: ${question.category.toUpperCase()}
+      Question asked: "${question.text}"
+      
+      Evaluation Standards:
+      ${isTechnical ? technicalInstructions : behavioralInstructions}
       
       Instructions:
-      1. Analyze the speaker's body language from the video frames (eye contact, posture, confidence).
-      2. Analyze the structured thinking (e.g., did they use STAR method?).
-      3. Evaluate clarity and sentiment.
-      4. Provide constructive feedback.` },
+      - Provide a score (1-5) and specific feedback for each dimension listed above.
+      - Extract any Red Flags.
+      - Analyze body language from the provided frames.` },
     ...frames.map(f => ({
       inlineData: {
         mimeType: 'image/jpeg',
@@ -69,21 +90,26 @@ export const analyzeInterviewResponse = async (
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          clarityScore: { type: Type.NUMBER, description: "0 to 100 score" },
-          sentimentScore: { type: Type.NUMBER, description: "0 to 100 score (positive sentiment)" },
-          structuredThinkingScore: { type: Type.NUMBER, description: "0 to 100 score" },
+          dimensions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                score: { type: Type.NUMBER, description: "1 to 5 score" },
+                feedback: { type: Type.STRING }
+              },
+              required: ["label", "score", "feedback"]
+            }
+          },
           bodyLanguageNotes: { type: Type.STRING },
-          keyStrengths: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING } 
-          },
-          areasOfImprovement: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING } 
-          },
-          overallFeedback: { type: Type.STRING }
+          keyStrengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+          areasOfImprovement: { type: Type.ARRAY, items: { type: Type.STRING } },
+          redFlags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Specific warnings based on the red flag criteria provided" },
+          overallFeedback: { type: Type.STRING },
+          overallScore: { type: Type.NUMBER, description: "1 to 5 overall score" }
         },
-        required: ["clarityScore", "sentimentScore", "structuredThinkingScore", "bodyLanguageNotes", "keyStrengths", "areasOfImprovement", "overallFeedback"]
+        required: ["dimensions", "bodyLanguageNotes", "keyStrengths", "areasOfImprovement", "redFlags", "overallFeedback", "overallScore"]
       }
     }
   });

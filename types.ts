@@ -5,15 +5,20 @@ export interface InterviewQuestion {
   category: 'behavioral' | 'technical' | 'situational' | 'intro';
 }
 
+export interface DimensionScore {
+  label: string;
+  score: number; // 1-5 scale
+  feedback: string;
+}
+
 export interface InterviewAnalysis {
-  clarityScore: number;
-  sentimentScore: number;
-  structuredThinkingScore: number;
+  dimensions: DimensionScore[];
   bodyLanguageNotes: string;
   keyStrengths: string[];
   areasOfImprovement: string[];
-  transcription?: string;
+  redFlags: string[];
   overallFeedback: string;
+  overallScore: number; // 1-5 scale
 }
 
 export interface InterviewSession {
